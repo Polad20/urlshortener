@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/Polad20/urlshortener/internal/handlers"
+	"github.com/Polad20/urlshortener/internal/middleware"
 	inmem "github.com/Polad20/urlshortener/internal/storage/inmem"
 	pg "github.com/Polad20/urlshortener/internal/storage/pg"
 	"github.com/joho/godotenv"
@@ -29,7 +30,8 @@ func main() {
 		repo := pg.NewPostgres()
 		r = handlers.NewHandler(repo)
 	}
-	//r = middleware.middlewareBrotli(r)
+	httpHandler := http.Handler(r)
+	httpHandler = middleware.MiddlewareBrotli(httpHandler)
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }

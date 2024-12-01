@@ -29,6 +29,7 @@ func main() {
 		repo := pg.NewPostgres()
 		r = handlers.NewHandler(repo)
 	}
+	//r = middleware.middlewareBrotli(r)
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }

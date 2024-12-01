@@ -3,6 +3,7 @@ module github.com/Polad20/urlshortener
 go 1.22.5
 
 require (
+	github.com/andybalholm/brotli v1.1.1
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9

@@ -31,7 +31,7 @@ func main() {
 		r = handlers.NewHandler(repo)
 	}
 	httpHandler := http.Handler(r)
-	httpHandler = middleware.MiddlewareBrotli(httpHandler)
+	httpHandler = middleware.MiddlewareBrotliEncoder(httpHandler)
 
-	log.Fatal(http.ListenAndServe(":8080", r))
+	log.Fatal(http.ListenAndServe(":8080", httpHandler))
 }

@@ -1,56 +1,42 @@
 package storage
 
 import (
-	"errors"
 	"sync"
-)
 
-var (
-	errNowSuchUrl        = errors.New("unknown url")
-	errNotUniqueShortUrl = errors.New("not unique short url")
-	errNotUniqueOrigUrl  = errors.New("not unique original url")
+	"github.com/Polad20/urlshortener/internal/model"
 )
 
 type Inmem struct {
-	urlList  map[string]string
-	origUrls map[string]int
-	lock     sync.Mutex
+	urlList map[string][]model.ShortenedURL
+	lock    sync.Mutex
 }
 
 func NewInmem() *Inmem {
 	memstor := &Inmem{}
-	memstor.urlList = make(map[string]string)
-	memstor.origUrls = make(map[string]int)
+	memstor.urlList = make(map[string][]model.ShortenedURL)
 	return memstor
 }
 
-func (storage *Inmem) SaveData(og, short string) (string, error) {
+func (storage *Inmem) SaveData(userID, shortURL, originalURL string) error {
 	storage.lock.Lock()
 	defer storage.lock.Unlock()
-	if err := storage.uniqueCheck(og, short); err != nil {
-		return "", err
+	shortenedURL := model.ShortenedURL{
+		ShortURL:    shortURL,
+		OriginalURL: originalURL,
 	}
-	storage.origUrls[og] = 1
-	storage.urlList[short] = og
-	return short, nil
-}
-
-func (storage *Inmem) GetData(short string) (string, error) {
-	storage.lock.Lock()
-	defer storage.lock.Unlock()
-	og, ok := storage.urlList[short]
-	if !ok {
-		return "", errNowSuchUrl
+	if _, ok := storage.urlList[userID]; !ok {
+		storage.urlList[userID] = []model.ShortenedURL{}
 	}
-	return og, nil
-}
-
-func (storage *Inmem) uniqueCheck(og, short string) error {
-	if _, ok := storage.origUrls[og]; ok {
-		return errNotUniqueOrigUrl
-	}
-	if _, ok := storage.urlList[short]; ok {
-		return errNotUniqueShortUrl
-	}
+	storage.urlList[userID] = append(storage.urlList[userID], shortenedURL)
 	return nil
+}
+
+func (storage *Inmem) GetURLsByUser(userID string) ([]model.ShortenedURL, error) {
+	storage.lock.Lock()
+	defer storage.lock.Unlock()
+	urls, ok := storage.urlList[userID]
+	if !ok {
+		return nil, nil
+	}
+	return urls, nil
 }

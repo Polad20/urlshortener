@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
+	"log"
 	"net/http"
 
 	"github.com/Polad20/urlshortener/internal/shortener"
@@ -10,77 +10,83 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-var (
-	errNotUnique         = errors.New("not unique original url")
-	errNotUniqueShortUrl = errors.New("not unique short url")
-)
-
 type Handler struct {
 	*chi.Mux
-	repo storage.Storage
+	repo      storage.Storage
+	shortener *shortener.Shortener
 }
 
-func NewHandler(repo storage.Storage) *Handler {
+func NewHandler(repo storage.Storage, shortener *shortener.Shortener) *Handler {
 	h := &Handler{
-		Mux:  chi.NewMux(),
-		repo: repo,
+		Mux:       chi.NewMux(),
+		repo:      repo,
+		shortener: shortener,
 	}
 
 	h.Post("/", h.saveURL())
-	h.Get("/", h.getURL())
+	h.Get("/api/user/urls", h.getURL())
 
 	return h
 }
 
 func (h *Handler) saveURL() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		service := shortener.NewShortener()
-		if err := json.NewDecoder(r.Body).Decode(service); err != nil {
+		userIDValue := r.Context().Value("userID")
+		if userIDValue == nil {
+			log.Println("Can`t get userID from Context")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		userID, ok := userIDValue.(string)
+		if !ok {
+			log.Println("Can`t convert userID to string")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		var req struct {
+			OriginalURL string `json:"url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		defer r.Body.Close()
-		service.Shorten()
-		shortened, err := h.repo.SaveData(service.OriginalURL, service.ShortURL)
+		shortURL, err := h.shortener.Shorten(userID, req.OriginalURL)
 		if err != nil {
-			if err == errNotUniqueShortUrl {
-				service.Reshorten(service.ShortURL)
-				shortened = service.ShortURL
-			}
-			if err == errNotUnique {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			}
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
-
 		encoder := json.NewEncoder(w)
 		encoder.SetEscapeHTML(false)
-		encoder.Encode(shortened)
+		encoder.Encode(map[string]string{"result": shortURL})
 		w.Header().Set("Content-Type", "application/json")
-
 		w.WriteHeader(http.StatusOK)
 	}
 }
 
 func (h *Handler) getURL() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		service := shortener.NewShortener()
-		if err := json.NewDecoder(r.Body).Decode(service); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		userIDinter := r.Context().Value("userID")
+		if userIDinter == nil {
+			http.Error(w, "You don`t have userID to get URL`s", http.StatusBadRequest)
 			return
 		}
-		defer r.Body.Close()
-		og, err := h.repo.GetData(service.ShortURL)
+		userID, ok := userIDinter.(string)
+		if !ok {
+			log.Println("Can`t conver userID to string")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		urls, err := h.repo.GetURLsByUser(userID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			http.Error(w, "Error getting url`s", http.StatusInternalServerError)
 			return
 		}
-
 		encoder := json.NewEncoder(w)
 		encoder.SetEscapeHTML(false)
-		encoder.Encode(og)
+		encoder.Encode(urls)
 		w.Header().Set("Content-Type", "application/json")
-
 		w.WriteHeader(http.StatusOK)
+
 	}
 }

@@ -1,11 +1,12 @@
 package shortener
 
 import (
-	"log"
 	"math/rand"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/Polad20/urlshortener/internal/storage"
 )
 
 type Shortener struct {
@@ -15,38 +16,31 @@ type Shortener struct {
 	charset     string
 	urlLen      string
 	myDomain    string
+	storage     storage.Storage
 }
 
 // Creates new instance of Shortener service.
 // Uses env variables to fill inner fields.
-func NewShortener() *Shortener {
+func NewShortener(storage storage.Storage) *Shortener {
 	return &Shortener{
 		randomizer: rand.New(rand.NewSource(time.Now().UnixNano())),
 		charset:    os.Getenv("CHARSET"),
 		urlLen:     os.Getenv("LENGTH"),
 		myDomain:   os.Getenv("DOMAIN"),
+		storage:    storage,
 	}
 }
 
-// Creates random URL, which satisfies given conditions.
-// Fatal if URL lenght condition is empty.
-func (s *Shortener) Shorten() {
-	intLen, err := strconv.Atoi(s.urlLen)
-	if err != nil {
-		log.Fatal(err)
-	}
-	b := make([]byte, intLen)
+func (s *Shortener) Shorten(userID, originalURL string) (string, error) {
+	intlen, _ := strconv.Atoi(s.urlLen)
+	b := make([]byte, intlen)
 	for i := range b {
 		b[i] = s.charset[s.randomizer.Intn(len(s.charset))]
 	}
-	s.ShortURL = s.myDomain + string(b)
-}
-
-// Generates new short URL.
-// Used for preserving URL unique condition.
-func (s *Shortener) Reshorten(short string) {
-	s.Shorten()
-	if s.ShortURL == short {
-		s.Reshorten(s.ShortURL)
+	shortURL := s.myDomain + string(b)
+	err := s.storage.SaveURL(userID, shortURL, originalURL)
+	if err != nil {
+		return "", err
 	}
+	return shortURL, nil
 }

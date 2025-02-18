@@ -7,6 +7,7 @@ import (
 
 	"github.com/Polad20/urlshortener/internal/handlers"
 	"github.com/Polad20/urlshortener/internal/middleware"
+	"github.com/Polad20/urlshortener/internal/shortener"
 	inmem "github.com/Polad20/urlshortener/internal/storage/inmem"
 	pg "github.com/Polad20/urlshortener/internal/storage/pg"
 	"github.com/joho/godotenv"
@@ -25,13 +26,17 @@ func main() {
 	switch storageType {
 	case "in-memory":
 		repo := inmem.NewInmem()
-		r = handlers.NewHandler(repo)
+		newShortener := shortener.NewShortener(repo)
+		r = handlers.NewHandler(repo, newShortener)
 	case "postgres":
-		repo := pg.NewPostgres()
-		r = handlers.NewHandler(repo)
+		repo, err := pg.NewPostgresStorage()
+		if err != nil {
+			log.Fatal("Ошибка создания нового экземпляра PostgresStorage")
+		}
+		newShortener := shortener.NewShortener(repo)
+		r = handlers.NewHandler(repo, newShortener)
 	}
 	httpHandler := http.Handler(r)
 	httpHandler = middleware.MiddlewareBrotliEncoder(httpHandler)
-
 	log.Fatal(http.ListenAndServe(":8080", httpHandler))
 }

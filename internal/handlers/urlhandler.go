@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -16,15 +17,15 @@ type Handler struct {
 	shortener *shortener.Shortener
 }
 
-func NewHandler(repo storage.Storage, shortener *shortener.Shortener) *Handler {
+func NewHandler(repo storage.Storage) *Handler {
 	h := &Handler{
-		Mux:       chi.NewMux(),
-		repo:      repo,
-		shortener: shortener,
+		Mux:  chi.NewMux(),
+		repo: repo,
 	}
 
 	h.Post("/", h.saveURL())
 	h.Get("/api/user/urls", h.getURL())
+	h.Get("/ping", h.pingHandler())
 
 	return h
 }
@@ -88,5 +89,16 @@ func (h *Handler) getURL() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
+	}
+}
+
+func (h *Handler) pingHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := h.repo.Ping(context.Background())
+		if err != nil {
+			http.Error(w, "DB connection error", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
 }

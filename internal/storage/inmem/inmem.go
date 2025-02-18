@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"sync"
 
 	"github.com/Polad20/urlshortener/internal/model"
@@ -17,7 +18,7 @@ func NewInmem() *Inmem {
 	return memstor
 }
 
-func (storage *Inmem) SaveData(userID, shortURL, originalURL string) error {
+func (storage *Inmem) SaveURL(userID, shortURL, originalURL string) error {
 	storage.lock.Lock()
 	defer storage.lock.Unlock()
 	shortenedURL := model.ShortenedURL{
@@ -39,4 +40,8 @@ func (storage *Inmem) GetURLsByUser(userID string) ([]model.ShortenedURL, error)
 		return nil, nil
 	}
 	return urls, nil
+}
+
+func (storage *Inmem) Ping(ctx context.Context) error {
+	return nil
 }

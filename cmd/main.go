@@ -26,14 +26,14 @@ func main() {
 	switch storageType {
 	case "in-memory":
 		repo := inmem.NewInmem()
-		newShortener := shortener.NewShortener(repo)
+		newShortener := shortener.NewShortener()
 		r = handlers.NewHandler(repo, newShortener)
 	case "postgres":
 		repo, err := pg.NewPostgresStorage()
 		if err != nil {
 			log.Fatal("Ошибка создания нового экземпляра PostgresStorage")
 		}
-		newShortener := shortener.NewShortener(repo)
+		newShortener := shortener.NewShortener()
 		r = handlers.NewHandler(repo, newShortener)
 	}
 	httpHandler := http.Handler(r)

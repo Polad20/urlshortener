@@ -3,15 +3,17 @@ package pg
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/Polad20/urlshortener/internal/model"
 	"github.com/Polad20/urlshortener/internal/shortener"
 )
 
 type PostgresStorage struct {
-	db *sql.DB
+	DB *sql.DB
 }
 
 func NewPostgresStorage() (*PostgresStorage, error) {
@@ -27,13 +29,13 @@ func NewPostgresStorage() (*PostgresStorage, error) {
 		log.Fatalf("Ошибка при проверке соединения с базой данных: %v", err)
 	}
 	postgresStorage := PostgresStorage{
-		db: db,
+		DB: db,
 	}
 	return &postgresStorage, nil
 }
 
 func (p *PostgresStorage) BaseSave(ctx context.Context, dbToSave []model.DbSave) error {
-	tx, err := p.db.BeginTx(ctx, nil)
+	tx, err := p.DB.BeginTx(ctx, nil)
 	if err != nil {
 		log.Printf("Error creating transaction: %v", err)
 		return err
@@ -65,7 +67,7 @@ func DbSavePrepare(userID string, item model.Incoming, shortener *shortener.Shor
 }
 
 func (p *PostgresStorage) Ping(ctx context.Context) error {
-	return p.db.PingContext(ctx)
+	return p.DB.PingContext(ctx)
 }
 
 func (p *PostgresStorage) GetURLsByUser(userID string) ([]model.ShortenedURL, error) {
@@ -73,5 +75,26 @@ func (p *PostgresStorage) GetURLsByUser(userID string) ([]model.ShortenedURL, er
 }
 
 func (p *PostgresStorage) SaveURL(userID, shortURL, originalURL string) error {
+	return nil
+}
+
+func (p *PostgresStorage) DeleteURLs(userID string, batchIDs []string, tx *sql.Tx) error {
+	if len(batchIDs) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(batchIDs))
+	args := make([]any, len(batchIDs)+1)
+	args[0] = userID
+	for i := 0; i < len(batchIDs); i++ {
+		placeholders[i] = fmt.Sprintf("%d", i+2)
+		args[i+1] = batchIDs[i]
+	}
+	query := `UPDATE urls SET is_deleted = TRUE WHERE user_id = $1 AND id IN (` +
+		strings.Join(placeholders, ", ") + `);`
+
+	_, err := tx.Exec(query, args...)
+	if err != nil {
+		return fmt.Errorf("Failed to execute batch update")
+	}
 	return nil
 }

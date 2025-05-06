@@ -27,6 +27,7 @@ func NewHandler(repo storage.Storage, shortener *shortener.Shortener) *Handler {
 	}
 
 	h.Post("/api/pg/shorten/batch", h.SaveBaseURL())
+	h.Post("/api/user/urls", h.deleteBatch())
 	h.Post("/api/inmem/shorten", h.saveURL())
 	h.Get("/api/inmem/user/urls", h.getURL())
 	h.Get("api/pg/ping", h.pingHandler())
@@ -80,7 +81,7 @@ func (h *Handler) getURL() http.HandlerFunc {
 		}
 		userID, ok := userIDinter.(string)
 		if !ok {
-			log.Println("Can`t conver userID to string")
+			log.Println("Can`t convert userID to string")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -120,7 +121,7 @@ func (h *Handler) SaveBaseURL() http.HandlerFunc {
 		err := decoder.Decode(&memory)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			log.Printf("Got some error decoding body: %v", err)
+			log.Printf("Error decoding body: %v", err)
 			return
 		}
 		for _, i := range memory {
@@ -155,11 +156,88 @@ func (h *Handler) SaveBaseURL() http.HandlerFunc {
 			log.Printf("Error saving batch to DB: %v", err)
 			return
 		}
-		w.Header().Set("Content-Type", "apllication/json")
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		encoder := json.NewEncoder(w)
 		if err := encoder.Encode(clientResponses); err != nil {
 			log.Printf("Error encoding batch response: %v", err)
 		}
+	}
+}
+
+func (h *Handler) deleteBatch() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDinter := r.Context().Value("userID")
+		if userIDinter == nil {
+			http.Error(w, "You don`t have userID to delete URL`s", http.StatusBadRequest)
+			return
+		}
+		userID, ok := userIDinter.(string)
+		if !ok {
+			http.Error(w, "Can`t convert userID to string", http.StatusInternalServerError)
+			return
+		}
+		var incoming []string
+		ch := make(chan string)
+		decoder := json.NewDecoder(r.Body)
+		defer r.Body.Close()
+		err := decoder.Decode(&incoming)
+		if err != nil {
+			http.Error(w, "Error decoding body", http.StatusBadRequest)
+			return
+		}
+		go func() {
+			defer close(ch)
+			for _, i := range incoming {
+				ch <- i
+			}
+		}()
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("PANIC in async batch delete for user %s: %v", userID, r)
+				}
+			}()
+			pgrepo, ok := h.repo.(*pg.PostgresStorage)
+			if !ok {
+				log.Printf("Error: storage backend is not PostgreSQL,batch delete requires PostgreSQL")
+				return
+			}
+			tx, err := pgrepo.DB.BeginTx(context.Background(), nil)
+			if err != nil {
+				log.Printf("Error: storage backend is not PostgreSQL,batch delete requires PostgreSQL")
+				return
+			}
+			defer tx.Rollback()
+			const maxBatchsize = 500
+			currentBatchSlice := make([]string, 0, maxBatchsize)
+			for ach := range ch {
+				currentBatchSlice = append(currentBatchSlice, ach)
+				if len(currentBatchSlice) == maxBatchsize {
+					err := pgrepo.DeleteURLs(userID, currentBatchSlice, tx)
+					if err != nil {
+						log.Printf("Batch Error - failed to call method DeleteURLs")
+						return
+					}
+					currentBatchSlice = make([]string, 0, maxBatchsize)
+				}
+			}
+			if len(currentBatchSlice) > 0 {
+				err := pgrepo.DeleteURLs(userID, currentBatchSlice, tx)
+				if err != nil {
+					log.Printf("Batch Error - failed for final delete")
+					return
+				}
+			}
+			err = tx.Commit()
+			if err != nil {
+				log.Printf("Batch Error - failed to commit transaction")
+				return
+			}
+			log.Printf("Batch delete completed succesfully")
+
+		}()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
 	}
 }

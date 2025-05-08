@@ -86,7 +86,7 @@ func (p *PostgresStorage) DeleteURLs(userID string, batchIDs []string, tx *sql.T
 	args := make([]any, len(batchIDs)+1)
 	args[0] = userID
 	for i := 0; i < len(batchIDs); i++ {
-		placeholders[i] = fmt.Sprintf("%d", i+2)
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
 		args[i+1] = batchIDs[i]
 	}
 	query := `UPDATE urls SET is_deleted = TRUE WHERE user_id = $1 AND id IN (` +

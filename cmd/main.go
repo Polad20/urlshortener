@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/Polad20/urlshortener/internal/auth"
 	"github.com/Polad20/urlshortener/internal/handlers"
-	"github.com/Polad20/urlshortener/internal/middleware"
 	"github.com/Polad20/urlshortener/internal/shortener"
 	inmem "github.com/Polad20/urlshortener/internal/storage/inmem"
 	pg "github.com/Polad20/urlshortener/internal/storage/pg"
@@ -23,20 +23,23 @@ func main() {
 	var r *handlers.Handler
 
 	storageType := os.Getenv("REPO")
+	authKey := os.Getenv("KEY")
+	if authKey == "" {
+		log.Fatal("AUTH_SECRET_KEY environment variable not set for authentication middleware")
+	}
+	authKeyBytes := []byte(authKey)
+	authMiddleware := auth.New(authKeyBytes)
+	newShortener := shortener.NewShortener()
 	switch storageType {
 	case "in-memory":
 		repo := inmem.NewInmem()
-		newShortener := shortener.NewShortener()
-		r = handlers.NewHandler(repo, newShortener)
+		r = handlers.NewHandler(repo, newShortener, authMiddleware)
 	case "postgres":
 		repo, err := pg.NewPostgresStorage()
 		if err != nil {
 			log.Fatal("Ошибка создания нового экземпляра PostgresStorage")
 		}
-		newShortener := shortener.NewShortener()
-		r = handlers.NewHandler(repo, newShortener)
+		r = handlers.NewHandler(repo, newShortener, authMiddleware)
 	}
-	httpHandler := http.Handler(r)
-	httpHandler = middleware.MiddlewareBrotliEncoder(httpHandler)
-	log.Fatal(http.ListenAndServe(":8080", httpHandler))
+	log.Fatal(http.ListenAndServe(":8080", r))
 }

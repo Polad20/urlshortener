@@ -77,6 +77,7 @@ func (a *Auth) MiddlewareAuth(next http.Handler) http.Handler {
 			a.setCookie(w, "userID", signedCookie)
 			ctx := context.WithValue(r.Context(), "userID", hex.EncodeToString(userID))
 			next.ServeHTTP(w, r.WithContext(ctx))
+			return
 		}
 		parts := strings.Split(cookie.Value, ".")
 		if len(parts) != 2 {
@@ -85,13 +86,19 @@ func (a *Auth) MiddlewareAuth(next http.Handler) http.Handler {
 			return
 		}
 		userID := parts[0]
-		signature, err := base64.URLEncoding.DecodeString(parts[1])
+		originalUserIDBytes, err := hex.DecodeString(userID)
+		if err != nil {
+			log.Printf("Error decoding userID hex from cookie: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		signature, err := base64.RawURLEncoding.DecodeString(parts[1])
 		if err != nil {
 			log.Printf("Error decoding signature: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		ok := a.checkSignature([]byte(userID), signature)
+		ok := a.checkSignature(originalUserIDBytes, signature)
 		if !ok {
 			w.WriteHeader(http.StatusUnauthorized)
 			log.Printf("Signature not valid")

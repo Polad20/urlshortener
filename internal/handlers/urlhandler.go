@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/Polad20/urlshortener/internal/auth"
+	"github.com/Polad20/urlshortener/internal/middleware"
 	"github.com/Polad20/urlshortener/internal/model"
 	"github.com/Polad20/urlshortener/internal/shortener"
 	"github.com/Polad20/urlshortener/internal/storage"
@@ -19,18 +21,19 @@ type Handler struct {
 	shortener *shortener.Shortener
 }
 
-func NewHandler(repo storage.Storage, shortener *shortener.Shortener) *Handler {
+func NewHandler(repo storage.Storage, shortener *shortener.Shortener, authMiddleware *auth.Auth) *Handler {
 	h := &Handler{
 		Mux:       chi.NewMux(),
 		repo:      repo,
 		shortener: shortener,
 	}
-
+	h.Use(authMiddleware.MiddlewareAuth)
+	h.Use(middleware.MiddlewareBrotliEncoder)
 	h.Post("/api/pg/shorten/batch", h.SaveBaseURL())
 	h.Post("/api/user/urls", h.deleteBatch())
 	h.Post("/api/inmem/shorten", h.saveURL())
 	h.Get("/api/inmem/user/urls", h.getURL())
-	h.Get("api/pg/ping", h.pingHandler())
+	h.Get("/api/pg/ping", h.pingHandler())
 
 	return h
 }

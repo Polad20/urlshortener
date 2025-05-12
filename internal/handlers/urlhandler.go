@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -29,6 +30,7 @@ func NewHandler(repo storage.Storage, shortener *shortener.Shortener, authMiddle
 	}
 	h.Use(authMiddleware.MiddlewareAuth)
 	h.Use(middleware.MiddlewareBrotliEncoder)
+	h.Get("/{id}", h.RedirectHandler())
 	h.Post("/api/pg/shorten/batch", h.SaveBaseURL())
 	h.Post("/api/user/urls", h.deleteBatch())
 	h.Post("/api/inmem/shorten", h.saveURL())
@@ -110,6 +112,31 @@ func (h *Handler) pingHandler() http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func (h *Handler) RedirectHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := r.Context().Value("userID")
+		userIDValue, ok := userID.(string)
+		if !ok {
+			http.Error(w, "Error: userID is not a string", http.StatusBadRequest)
+			return
+		}
+		id := chi.URLParam(r, "id")
+		if id == "" {
+			log.Printf("Redirect Handler Error: ID not found in URL path")
+			http.Error(w, "Invalid request path", http.StatusBadRequest)
+			return
+		}
+		shortURL := fmt.Sprintf("http://localhost:8080/%s", id)
+		originalURL, err := h.repo.FindUsersOrigURL(userIDValue, shortURL)
+		if err != nil {
+			log.Printf("Redirect Handler Error: Failed 	to get original URL for '%s': %v", shortURL, err)
+			http.Error(w, "Cant find original url for given short", http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, originalURL, http.StatusTemporaryRedirect)
 	}
 }
 

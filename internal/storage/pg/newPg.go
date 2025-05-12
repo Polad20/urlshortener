@@ -78,6 +78,10 @@ func (p *PostgresStorage) SaveURL(userID, shortURL, originalURL string) error {
 	return nil
 }
 
+func (p *PostgresStorage) FindUsersOrigURL(userID, shortURL string) (string, error) {
+	return "", nil
+}
+
 func (p *PostgresStorage) DeleteURLs(userID string, batchIDs []string, tx *sql.Tx) error {
 	if len(batchIDs) == 0 {
 		return nil

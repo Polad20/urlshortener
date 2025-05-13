@@ -121,6 +121,7 @@ func (h *Handler) RedirectHandler() http.HandlerFunc {
 		userIDValue, ok := userID.(string)
 		if !ok {
 			http.Error(w, "Error: userID is not a string", http.StatusBadRequest)
+			log.Printf("userID is not a string")
 			return
 		}
 		id := chi.URLParam(r, "id")
@@ -157,13 +158,13 @@ func (h *Handler) SaveBaseURL() http.HandlerFunc {
 		for _, i := range memory {
 			userIDvalue, ok := userID.(string)
 			if !ok {
-				w.WriteHeader(http.StatusInternalServerError)
+				http.Error(w, "userID in context not a string", http.StatusInternalServerError)
 				log.Printf("Error: userID in context not a string, %v", userID)
 				return
 			}
 			newDBentry, err := pg.DbSavePrepare(userIDvalue, i, h.shortener)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
+				http.Error(w, "Error preparing DB entry ", http.StatusInternalServerError)
 				log.Printf("Error preparing DB entry: %v", err)
 				return
 			}

@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"github.com/Polad20/urlshortener/internal/model"
 	"github.com/Polad20/urlshortener/internal/shortener"
 )
+
+var ErrURLNotFoundForUser = errors.New("URL not found for user")
 
 type PostgresStorage struct {
 	DB *sql.DB
@@ -79,7 +82,20 @@ func (p *PostgresStorage) SaveURL(userID, shortURL, originalURL string) error {
 }
 
 func (p *PostgresStorage) FindUsersOrigURL(userID, shortURL string) (string, error) {
-	return "", nil
+	if userID == "" || shortURL == "" {
+		return "", errors.New("Got empty userID or shortURL")
+	}
+	query := "SELECT Original_url FROM public.test_table WHERE UserID = $1 AND Short_url = $2"
+	var originalURL string
+	row := p.DB.QueryRow(query, userID, shortURL)
+	err := row.Scan(&originalURL)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("short URL %s not found for user %s: %w", shortURL, userID, ErrURLNotFoundForUser)
+		}
+		return "", fmt.Errorf("failed to scan result for short URL %s for user %s: %w", shortURL, userID, err)
+	}
+	return originalURL, nil
 }
 
 func (p *PostgresStorage) DeleteURLs(userID string, batchIDs []string, tx *sql.Tx) error {

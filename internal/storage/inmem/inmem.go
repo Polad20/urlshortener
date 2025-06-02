@@ -3,10 +3,10 @@ package inmem
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/Polad20/urlshortener/internal/model"
+	"github.com/rs/zerolog/log"
 )
 
 type Inmem struct {
@@ -15,15 +15,15 @@ type Inmem struct {
 }
 
 func NewInmem() *Inmem {
-	memstor := &Inmem{}
-	memstor.urlList = make(map[string][]model.ShortenedURL)
-	return memstor
+	newInmem := &Inmem{}
+	newInmem.urlList = make(map[string][]model.ShortenedURL)
+	return newInmem
 }
 
 func (storage *Inmem) SaveURL(userID, shortURL, originalURL string) error {
 	storage.lock.Lock()
 	defer storage.lock.Unlock()
-	log.Printf("Saving URL for user %s: shortURL='%s', originalURL='%s'", userID, shortURL, originalURL)
+	log.Info().Msgf("Saving URL for user %s: shortURL='%s', originalURL='%s'", userID, shortURL, originalURL)
 	shortenedURL := model.ShortenedURL{
 		ShortURL:    shortURL,
 		OriginalURL: originalURL,
@@ -52,7 +52,7 @@ func (storage *Inmem) Ping(ctx context.Context) error {
 func (storage *Inmem) FindUsersOrigURL(userID, shortURL string) (string, error) {
 	pairsURL, ok := storage.urlList[userID]
 	if !ok {
-		log.Printf("Can`t find this Users URL`s")
+		log.Warn().Msg("Can`t find this Users URL`s")
 		return "", fmt.Errorf("User Not Found")
 	}
 	for _, v := range pairsURL {

@@ -1,31 +1,29 @@
 package main
 
 import (
-	"log"
 	"net/http"
-	"os"
 
+	"github.com/Polad20/urlshortener/config"
 	"github.com/Polad20/urlshortener/internal/auth"
 	"github.com/Polad20/urlshortener/internal/handlers"
 	"github.com/Polad20/urlshortener/internal/shortener"
 	inmem "github.com/Polad20/urlshortener/internal/storage/inmem"
 	pg "github.com/Polad20/urlshortener/internal/storage/pg"
-	"github.com/joho/godotenv"
+	"github.com/Polad20/urlshortener/logs"
+	log "github.com/rs/zerolog/log"
 )
 
 func main() {
-
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatal("Error loading .env file, using environment variables or defaults")
+	if err := config.LoadConfig(); err != nil {
+		log.Fatal().Err(err).Msgf("Error loading Config: %v", err)
 	}
 
 	var r *handlers.Handler
-
-	storageType := os.Getenv("REPO")
-	authKey := os.Getenv("KEY")
+	logs.InitLogger(config.AppConfig.Log)
+	storageType := config.AppConfig.Repository.Type
+	authKey := config.AppConfig.Auth.Key
 	if authKey == "" {
-		log.Fatal("AUTH_SECRET_KEY environment variable not set for authentication middleware")
+		log.Fatal().Msg("AUTH_SECRET_KEY environment variable not set for authentication middleware")
 	}
 	authKeyBytes := []byte(authKey)
 	authMiddleware := auth.New(authKeyBytes)
@@ -37,9 +35,9 @@ func main() {
 	case "postgres":
 		repo, err := pg.NewPostgresStorage()
 		if err != nil {
-			log.Fatal("Ошибка создания нового экземпляра PostgresStorage")
+			log.Fatal().Msg("Ошибка создания нового экземпляра PostgresStorage")
 		}
 		r = handlers.NewHandler(repo, newShortener, authMiddleware)
 	}
-	log.Fatal(http.ListenAndServe(":8080", r))
+	log.Fatal().Err(http.ListenAndServe(":8080", r)).Msg("Сервер остановлен.")
 }

@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"strings"
 
+	"github.com/Polad20/urlshortener/config"
 	"github.com/Polad20/urlshortener/internal/model"
 	"github.com/Polad20/urlshortener/internal/shortener"
+	"github.com/rs/zerolog/log"
 )
 
 var ErrURLNotFoundForUser = errors.New("URL not found for user")
@@ -20,16 +20,16 @@ type PostgresStorage struct {
 }
 
 func NewPostgresStorage() (*PostgresStorage, error) {
-	dsn := os.Getenv("PG_URL")
+	dsn := config.AppConfig.Repository.PgURL
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		log.Printf("Error opening DB, %v", err)
+		log.Err(err).Msgf("Error opening DB, %v", err)
 		return nil, err
 	}
 	err = db.Ping()
 	if err != nil {
 		db.Close()
-		log.Fatalf("Ошибка при проверке соединения с базой данных: %v", err)
+		log.Fatal().Msgf("Ошибка при проверке соединения с базой данных: %v", err)
 	}
 	postgresStorage := PostgresStorage{
 		DB: db,
@@ -40,19 +40,19 @@ func NewPostgresStorage() (*PostgresStorage, error) {
 func (p *PostgresStorage) BaseSave(ctx context.Context, dbToSave []model.DbSave) error {
 	tx, err := p.DB.BeginTx(ctx, nil)
 	if err != nil {
-		log.Printf("Error creating transaction: %v", err)
+		log.Err(err).Msgf("Error creating transaction: %v", err)
 		return err
 	}
 	defer tx.Rollback()
 	stmt, err := tx.PrepareContext(ctx, "INSERT INTO public.test_table(UserID, Correlation_id, Original_url,Short_url) VALUES($1,$2,$3,$4) ON CONFLICT(Original_url) DO NOTHING")
 	if err != nil {
-		log.Printf("Error creating statement: %v", err)
+		log.Err(err).Msgf("Error creating statement: %v", err)
 		return err
 	}
 	defer stmt.Close()
 	for _, v := range dbToSave {
 		if _, err = stmt.ExecContext(ctx, v.UserID, v.Correlation_id, v.Original_url, v.Short_url); err != nil {
-			log.Printf("Error execing statement: %v", err)
+			log.Err(err).Msgf("Error execing statement: %v", err)
 			return err
 		}
 	}

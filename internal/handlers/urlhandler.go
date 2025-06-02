@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/Polad20/urlshortener/internal/auth"
@@ -14,6 +13,7 @@ import (
 	"github.com/Polad20/urlshortener/internal/storage"
 	"github.com/Polad20/urlshortener/internal/storage/pg"
 	"github.com/go-chi/chi/v5"
+	"github.com/rs/zerolog/log"
 )
 
 type Handler struct {
@@ -44,13 +44,13 @@ func (h *Handler) saveURL() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userIDValue := r.Context().Value("userID")
 		if userIDValue == nil {
-			log.Println("Can`t get userID from Context")
+			log.Warn().Msg("Can`t get userID from Context")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		userID, ok := userIDValue.(string)
 		if !ok {
-			log.Println("Can`t convert userID to string")
+			log.Warn().Msg("Can`t convert userID to string")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -66,7 +66,7 @@ func (h *Handler) saveURL() http.HandlerFunc {
 		err := h.repo.SaveURL(userID, shortURL, req.OriginalURL)
 		if err != nil {
 			http.Error(w, "Failed to Save URL", http.StatusInternalServerError)
-			log.Printf("Error saving URL to storage: %v", err)
+			log.Err(err).Msgf("Error saving URL to storage: %v", err)
 			return
 		}
 		encoder := json.NewEncoder(w)
@@ -86,7 +86,7 @@ func (h *Handler) getURL() http.HandlerFunc {
 		}
 		userID, ok := userIDinter.(string)
 		if !ok {
-			log.Println("Can`t convert userID to string")
+			log.Warn().Msg("Can`t convert userID to string")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

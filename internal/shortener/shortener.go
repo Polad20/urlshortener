@@ -2,9 +2,10 @@ package shortener
 
 import (
 	"math/rand"
-	"os"
 	"strconv"
 	"time"
+
+	"github.com/Polad20/urlshortener/config"
 )
 
 type Shortener struct {
@@ -19,9 +20,9 @@ type Shortener struct {
 func NewShortener() *Shortener {
 	return &Shortener{
 		randomizer: rand.New(rand.NewSource(time.Now().UnixNano())),
-		charset:    os.Getenv("CHARSET"),
-		urlLen:     os.Getenv("LENGTH"),
-		myDomain:   os.Getenv("DOMAIN"),
+		charset:    config.AppConfig.URL.Charset,
+		urlLen:     config.AppConfig.URL.Length,
+		myDomain:   config.AppConfig.URL.Domain,
 	}
 }
 

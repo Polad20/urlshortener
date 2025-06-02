@@ -8,10 +8,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 type Auth struct {
@@ -64,13 +65,13 @@ func (a *Auth) MiddlewareAuth(next http.Handler) http.Handler {
 		if err == http.ErrNoCookie {
 			userID, err := generateRandom(32)
 			if err != nil {
-				log.Printf("Error generating userID: %v", err)
+				log.Err(err).Msgf("Error generating userID: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			signedCookie, err := a.signCookie(userID)
 			if err != nil {
-				log.Printf("Error signing cookie: %v", err)
+				log.Err(err).Msgf("Error signing cookie: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -82,26 +83,26 @@ func (a *Auth) MiddlewareAuth(next http.Handler) http.Handler {
 		parts := strings.Split(cookie.Value, ".")
 		if len(parts) != 2 {
 			w.WriteHeader(http.StatusBadRequest)
-			log.Printf("Bad cookie format: %v", cookie.Value)
+			log.Warn().Msgf("Bad cookie format: %v", cookie.Value)
 			return
 		}
 		userID := parts[0]
 		originalUserIDBytes, err := hex.DecodeString(userID)
 		if err != nil {
-			log.Printf("Error decoding userID hex from cookie: %v", err)
+			log.Err(err).Msgf("Error decoding userID hex from cookie: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		signature, err := base64.RawURLEncoding.DecodeString(parts[1])
 		if err != nil {
-			log.Printf("Error decoding signature: %v", err)
+			log.Err(err).Msgf("Error decoding signature: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		ok := a.checkSignature(originalUserIDBytes, signature)
 		if !ok {
 			w.WriteHeader(http.StatusUnauthorized)
-			log.Printf("Signature not valid")
+			log.Warn().Msg("Signature not valid")
 			return
 		}
 		ctx := context.WithValue(r.Context(), "userID", userID)
